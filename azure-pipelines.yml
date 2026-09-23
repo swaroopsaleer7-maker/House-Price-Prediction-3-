@@ -1,0 +1,94 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+
+# 1. Checkout source code
+- checkout: self
+  displayName: 'Checkout Source Code'
+
+
+# 2. Install Python
+- task: UsePythonVersion@0
+  inputs:
+    versionSpec: '3.8'
+    addToPath: true
+  displayName: 'Setup Python 3.8'
+
+
+# 3. Upgrade pip
+- script: |
+    python -m pip install --upgrade pip
+  displayName: 'Upgrade pip'
+
+
+# 4. Install project dependencies
+- script: |
+    pip install -r requirement.txt
+  displayName: 'Install Dependencies'
+
+
+# 5. Install unit test dependencies
+- script: |
+    pip install pytest
+    pip install pytest-html
+  displayName: 'Install Unit Test Dependencies'
+
+
+# 6. Check Python files
+- script: |
+    python -m py_compile app.py
+    python -m py_compile house.py
+  displayName: 'Validate Python Code'
+
+
+# 7. Create test result folder
+- script: |
+    mkdir -p test-results
+  displayName: 'Create Test Result Folder'
+
+
+# 8. Run 50 unit tests
+- script: |
+    pytest tests/test_app_50_cases.py \
+      -v \
+      -ra \
+      --junitxml=test-results/junit.xml \
+      --html=test-results/unit-test-report.html \
+      --self-contained-html
+  displayName: 'Run 50 Unit Tests'
+  continueOnError: true
+
+
+# 9. Publish unit test results
+- task: PublishTestResults@2
+  condition: always()
+  inputs:
+    testResultsFormat: 'JUnit'
+    testResultsFiles: 'test-results/junit.xml'
+    testRunTitle: 'House Price Prediction Unit Tests'
+    failTaskOnFailedTests: false
+  displayName: 'Publish Unit Test Results'
+
+
+# 10. Publish HTML test report
+- task: PublishPipelineArtifact@1
+  condition: always()
+  inputs:
+    targetPath: 'test-results'
+    artifact: 'unit-test-report'
+    publishLocation: 'pipeline'
+  displayName: 'Publish Unit Test Report'
+
+
+# 11. Start Flask application
+- script: |
+    python app.py &
+    sleep 10
+    echo "Flask application started successfully"
+  displayName: 'Start Flask Application'
